@@ -1,4 +1,6 @@
-# 加密货币交易代理系统使用指南
+# 加密货币交易代理系统使用指南 | Crypto Trading Agent Guide
+
+[English](README_EN.md) | 中文
 
 这个文档提供了加密货币交易代理系统的详细使用说明，包括安装、配置、运行以及各种功能的使用方法。
 
@@ -290,3 +292,158 @@ python main.py --config configs/backtest_config.json --mode backtest
 - 减少使用的指标数量
 - 降低数据请求频率
 - 优化数据处理逻辑
+
+## 致谢 | Acknowledgements
+
+本项目的开发受到以下优秀项目的启发：
+
+1. [ai-hedge-fund](https://github.com/virattt/ai-hedge-fund) - 一个基于 AI 的对冲基金系统，为本项目的多代理架构和决策流程提供了重要参考。
+
+2. [A_Share_investment_Agent](https://github.com/24mlight/A_Share_investment_Agent) - 一个针对 A 股市场的 AI 投资系统，为本项目的风险管理和投资组合管理提供了宝贵思路。
+
+感谢这些项目的作者为开源社区做出的贡献。
+
+## 语言支持 | Language Support
+
+本系统支持中文和英文两种语言模式：
+
+1. **中文模式**（默认）：
+
+```bash
+python main.py --ticker BTC/USDT --lang zh
+```
+
+2. **英文模式**：
+
+```bash
+python main.py --ticker BTC/USDT --lang en
+```
+
+语言设置会影响：
+
+- 系统输出信息
+- 分析报告内容
+- 日志记录
+- 错误提示
+
+## 项目结构
+
+```
+crypto-trading-agent/
+├── main.py                           # 主程序入口
+├── requirements.txt                  # 项目依赖
+├── README.md                         # 项目说明
+├── USAGE.md                          # 使用指南
+├── src/                             # 源代码目录
+│   ├── agents/                       # 代理模块
+│   │   ├── __init__.py
+│   │   ├── state.py                  # 状态管理
+│   │   ├── market_data.py            # 市场数据代理
+│   │   ├── technicals.py             # 技术分析代理
+│   │   ├── onchain_analysis.py       # 链上分析代理
+│   │   ├── sentiment.py              # 情绪分析代理
+│   │   ├── valuation.py              # 估值分析代理
+│   │   ├── researcher_bull.py        # 看多研究代理
+│   │   ├── researcher_bear.py        # 看空研究代理
+│   │   ├── debate_room.py            # 辩论室代理
+│   │   ├── risk_manager.py           # 风险管理代理
+│   │   ├── portfolio_manager.py      # 投资组合管理代理
+│   │   └── execution.py              # 交易执行代理
+│   ├── tools/                        # 工具模块
+│   │   ├── __init__.py
+│   │   ├── crypto_api.py             # 加密货币API工具
+│   │   ├── openrouter_config.py      # LLM配置
+│   │   └── notification.py           # 通知工具
+│   ├── backtest/                     # 回测系统
+│   │   ├── __init__.py
+│   │   ├── backtester.py             # 回测引擎
+│   │   ├── strategies/               # 策略集合
+│   │   │   ├── __init__.py
+│   │   │   ├── ema_cross.py          # EMA交叉策略示例
+│   │   │   └── rsi_strategy.py       # RSI策略示例
+│   │   └── performance.py            # 性能分析工具
+│   └── utils/                        # 工具函数
+│       ├── __init__.py
+│       └── logging_config.py         # 日志配置
+├── workflow/                         # 工作流控制
+│   ├── __init__.py
+│   └── controller.py                 # 工作流控制器
+├── configs/                          # 配置文件
+│   ├── default_config.json           # 默认配置
+│   └── example_config.json           # 示例配置
+├── data/                             # 数据文件夹
+│   ├── market_data/                  # 市场数据
+│   ├── onchain_data/                 # 链上数据
+│   └── sentiment_data/               # 情绪数据
+├── logs/                             # 日志文件夹
+└── results/                          # 结果输出文件夹
+    ├── analysis/                     # 分析结果
+    ├── trading/                      # 交易结果
+    └── backtest/                     # 回测结果
+```
+
+## 工作流程图
+
+```mermaid
+flowchart TD
+    subgraph 工作流控制器[工作流控制器]
+        Config[配置加载] --> |初始化| Start
+        Start[开始分析] --> MarketData
+
+        %% 数据收集阶段
+        MarketData[市场数据代理] --> |收集数据| Technical
+        MarketData --> |收集数据| Onchain
+        MarketData --> |收集数据| Sentiment
+        MarketData --> |收集数据| Valuation
+
+        %% 分析阶段
+        subgraph 分析代理[分析代理层]
+            Technical[技术分析代理]
+            Onchain[链上分析代理]
+            Sentiment[情绪分析代理]
+            Valuation[估值分析代理]
+        end
+
+        %% 研究阶段
+        Technical --> BearResearch
+        Onchain --> BearResearch
+        Sentiment --> BearResearch
+        Valuation --> BearResearch
+
+        Technical --> BullResearch
+        Onchain --> BullResearch
+        Sentiment --> BullResearch
+        Valuation --> BullResearch
+
+        subgraph 研究代理[研究代理层]
+            BearResearch[看空研究代理]
+            BullResearch[看多研究代理]
+            DebateRoom[辩论室代理]
+        end
+
+        BearResearch --> DebateRoom
+        BullResearch --> DebateRoom
+
+        %% 决策阶段
+        DebateRoom --> RiskManagement
+
+        subgraph 决策执行[决策执行层]
+            RiskManagement[风险管理代理]
+            PortfolioManagement[投资组合管理代理]
+            Execution[交易执行代理]
+        end
+
+        RiskManagement --> PortfolioManagement
+        PortfolioManagement --> Decision{交易决策?}
+
+        %% 执行阶段
+        Decision -->|买入/卖出| Execution
+        Decision -->|持有| End
+
+        Execution --> End[结束分析循环]
+
+        %% 结果反馈
+        End --> |保存结果| Results[(结果存储)]
+        End --> |发送通知| Notification[通知系统]
+    end
+```

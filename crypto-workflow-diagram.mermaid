@@ -1,0 +1,89 @@
+flowchart TD
+    subgraph 工作流控制器[工作流控制器]
+        Config[配置加载] --> |初始化| Start
+        Start[开始分析] --> MarketData
+        
+        %% 数据收集阶段
+        MarketData[市场数据代理] --> |收集数据| Technical
+        MarketData --> |收集数据| Onchain
+        MarketData --> |收集数据| Sentiment
+        MarketData --> |收集数据| Valuation
+        
+        %% 分析阶段
+        subgraph 分析代理[分析代理层]
+            Technical[技术分析代理]
+            Onchain[链上分析代理]
+            Sentiment[情绪分析代理]
+            Valuation[估值分析代理]
+        end
+        
+        %% 研究阶段
+        Technical --> BearResearch
+        Onchain --> BearResearch
+        Sentiment --> BearResearch
+        Valuation --> BearResearch
+        
+        Technical --> BullResearch
+        Onchain --> BullResearch
+        Sentiment --> BullResearch
+        Valuation --> BullResearch
+        
+        subgraph 研究代理[研究代理层]
+            BearResearch[看空研究代理]
+            BullResearch[看多研究代理]
+            DebateRoom[辩论室代理]
+        end
+        
+        BearResearch --> DebateRoom
+        BullResearch --> DebateRoom
+        
+        %% 决策阶段
+        DebateRoom --> RiskManagement
+        
+        subgraph 决策执行[决策执行层]
+            RiskManagement[风险管理代理]
+            PortfolioManagement[投资组合管理代理]
+            Execution[交易执行代理]
+        end
+        
+        RiskManagement --> PortfolioManagement
+        PortfolioManagement --> Decision{交易决策?}
+        
+        %% 执行阶段
+        Decision -->|买入/卖出| Execution
+        Decision -->|持有| End
+        
+        Execution --> End[结束分析循环]
+        
+        %% 结果反馈
+        End --> |保存结果| Results[(结果存储)]
+        End --> |发送通知| Notification[通知系统]
+    end
+    
+    %% 回测系统
+    subgraph 回测系统[回测系统]
+        BacktestConfig[回测配置] --> |初始化| BacktestStart
+        BacktestStart[开始回测] --> LoadHistoricalData
+        LoadHistoricalData[加载历史数据] --> RunStrategy
+        RunStrategy[运行策略] --> AnalyzePerformance
+        AnalyzePerformance[分析性能] --> GenerateReport
+        GenerateReport[生成报告] --> BacktestEnd[回测结束]
+    end
+    
+    classDef configNode fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
+    classDef dataNode fill:#bbf7d0,stroke:#16a34a,stroke-width:2px
+    classDef analysisNode fill:#ddd6fe,stroke:#8b5cf6,stroke-width:2px
+    classDef researchNode fill:#fed7aa,stroke:#f97316,stroke-width:2px
+    classDef decisionNode fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+    classDef executionNode fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    classDef backtestNode fill:#fcd5ce,stroke:#f87171,stroke-width:2px
+    classDef endNode fill:#e2e8f0,stroke:#64748b,stroke-width:2px
+    
+    class Config,BacktestConfig configNode
+    class MarketData dataNode
+    class Technical,Onchain,Sentiment,Valuation analysisNode
+    class BearResearch,BullResearch,DebateRoom researchNode
+    class RiskManagement,PortfolioManagement decisionNode
+    class Execution executionNode
+    class BacktestStart,LoadHistoricalData,RunStrategy,AnalyzePerformance,GenerateReport backtestNode
+    class End,Results,Notification,BacktestEnd endNode
