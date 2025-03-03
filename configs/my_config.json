@@ -1,0 +1,42 @@
+{
+  "mode": "analysis",
+  "symbol": "BTC/USDT",
+  "exchange_id": "binance",
+  "timeframe": "1d",
+  "portfolio": {
+    "cash": 10000,
+    "stock": 0
+  },
+  "execution_mode": "simulation",
+  "show_reasoning": true,
+  "save_results": true,
+  "results_dir": "results",
+  "api_keys": {
+    "binance": {
+      "api_key": "YOUR_API_KEY_HERE",
+      "api_secret": "YOUR_API_SECRET_HERE"
+    },
+    "twitter": {
+      "bearer_token": "YOUR_TWITTER_BEARER_TOKEN"
+    }
+  },
+  "notification": {
+    "enabled": false,
+    "telegram": {
+      "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+      "chat_id": "YOUR_TELEGRAM_CHAT_ID"
+    },
+    "email": {
+      "enabled": false,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "sender_email": "your_email@gmail.com",
+      "receiver_email": "your_email@gmail.com",
+      "password": "YOUR_EMAIL_PASSWORD"
+    }
+  },
+  "backtesting": {
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31"
+  }
+}
