@@ -1,0 +1,63 @@
+# Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# 日志文件
+logs/
+*.log
+
+# 数据文件
+data/market_data/
+data/onchain_data/
+data/sentiment_data/
+*.csv
+*.xlsx
+*.json
+!configs/default_config.json
+!configs/example_config.json
+
+# 结果文件
+results/
+results/analysis/
+results/trading/
+results/backtest/
+
+# 配置文件（除了示例和默认配置）
+configs/*
+!configs/default_config.json
+!configs/example_config.json
+
+# IDE和编辑器文件
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+tmp/
+temp/
+.temp/
+.tmp/
+
+# 测试覆盖率
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# 构建文件
+build/
+dist/
+*.egg-info/
