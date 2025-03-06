@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 from langchain_core.messages import HumanMessage
 from src.agents.state import AgentState, show_agent_reasoning, show_workflow_status
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TechnicalAnalysisAgent:
     """
@@ -35,10 +38,20 @@ class TechnicalAnalysisAgent:
         
         # 获取基础数据
         self.symbol = data.get("symbol", "BTC/USDT")
-        prices = data.get("prices", [])
         
-        # 转换价格数据为DataFrame
-        self.prices_df = self._convert_to_dataframe(prices)
+        # 尝试首先使用预先处理的DataFrame，如果存在的话
+        if "prices_df" in data and isinstance(data["prices_df"], pd.DataFrame) and not data["prices_df"].empty:
+            self.prices_df = data["prices_df"]
+            # 确保计算了技术指标
+            if 'ma20' not in self.prices_df.columns:
+                self._add_technical_indicators(self.prices_df)
+            logger.info(f"使用已准备好的prices_df，包含{len(self.prices_df)}条记录")
+        else:
+            # 否则使用prices列表数据
+            prices = data.get("prices", [])
+            logger.info(f"使用prices列表数据，包含{len(prices)}条记录")
+            # 转换价格数据为DataFrame
+            self.prices_df = self._convert_to_dataframe(prices)
         
         # 检查数据是否足够
         if self.prices_df.empty or len(self.prices_df) < 14:  # 至少需要14天数据

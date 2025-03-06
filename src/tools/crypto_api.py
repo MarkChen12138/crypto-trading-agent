@@ -8,6 +8,8 @@ import time
 import os
 import logging
 from dotenv import load_dotenv
+import requests
+import google.generativeai as genai
 
 # 设置日志记录
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -237,8 +239,43 @@ def get_price_history(exchange, symbol: str, timeframe: str = '1d',
         return pd.DataFrame()
 
 
+def get_market_sentiment(asset: str) -> Dict[str, Any]:
+    """获取市场情绪数据
+    
+    Args:
+        asset: 资产代号，如'BTC'或'ETH'
+        
+    Returns:
+        包含市场情绪数据的字典
+    """
+    try:
+        # 获取新闻数据
+        news_data = get_crypto_news(asset)
+        
+        # 获取CoinMarketCap数据
+        cmc_data = get_coinmarketcap_data(asset)
+        
+        # 计算情绪得分
+        sentiment_score = 0
+        if news_data.get("sentiment_stats"):
+            stats = news_data["sentiment_stats"]
+            total = stats["positive"] + stats["negative"] + stats["neutral"]
+            if total > 0:
+                sentiment_score = (stats["positive"] - stats["negative"]) / total
+        
+        return {
+            "news_data": news_data,
+            "market_data": cmc_data,
+            "sentiment_score": sentiment_score,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"获取{asset}市场情绪数据时出错: {e}")
+        return {}
+
 def get_onchain_metrics(asset: str) -> Dict[str, Any]:
-    """获取链上指标数据（通过外部API）
+    """获取链上指标数据
     
     Args:
         asset: 资产代号，如'BTC'或'ETH'
@@ -247,25 +284,83 @@ def get_onchain_metrics(asset: str) -> Dict[str, Any]:
         包含链上指标的字典
     """
     try:
-        # 这里应该集成实际的链上数据API，如Glassnode、CryptoQuant等
-        # 以下为模拟数据
-        onchain_metrics = {
-            "active_addresses_24h": 950000,
-            "transaction_count_24h": 350000,
-            "average_transaction_value": 25000,
-            "hashrate": 305000000000000000000 if asset == "BTC" else None,
-            "staking_rate": 65.3 if asset == "ETH" else None,
-            "nvt_ratio": 27.5,
-            "realized_price": 28500 if asset == "BTC" else 1850 if asset == "ETH" else 0,
-            "mvrv_ratio": 1.23,
-            "reserve_risk": 0.0073,
-            "supply_last_active_1y_percent": 38.4,
-            "puell_multiple": 1.05 if asset == "BTC" else None,
-            "timestamp": datetime.now().timestamp()
+        # 1. 获取DEX交易对列表
+        url = "https://pro-api.coinmarketcap.com/v4/dex/spot-pairs/latest"
+        params = {
+            "base_asset_symbol": asset.lower(),
+            "limit": 1,  # 只获取流动性最高的交易对
+            "sort": "liquidity",
+            "sort_dir": "desc",
+            "aux": "num_transactions_24h,holders,24h_no_of_buys,24h_no_of_sells,24h_buy_volume,24h_sell_volume"
+        }
+        headers = {
+            "X-CMC_PRO_API_KEY": os.getenv('COINMARKETCAP_API_KEY'),
+            "Accept": "application/json"
         }
         
-        logger.info(f"成功获取{asset}的链上指标数据")
-        return onchain_metrics
+        response = requests.get(url, params=params, headers=headers)
+        if response.status_code != 200:
+            logger.error(f"获取{asset} DEX交易对列表失败: HTTP {response.status_code}")
+            logger.error(f"错误响应: {response.text}")
+            return {}
+            
+        pairs_data = response.json()
+        if not pairs_data.get("data"):
+            logger.error(f"未找到{asset}的DEX交易对")
+            return {}
+            
+        # 获取第一个交易对的合约地址
+        pair = pairs_data["data"][0]
+        contract_address = pair.get("contract_address")
+        network_slug = pair.get("network_slug")
+        
+        if not contract_address or not network_slug:
+            logger.error(f"交易对缺少必要信息: {pair}")
+            return {}
+            
+        # 2. 获取历史OHLCV数据
+        ohlcv_url = "https://pro-api.coinmarketcap.com/v4/dex/pairs/ohlcv/historical"
+        ohlcv_params = {
+            "contract_address": contract_address,
+            "network_slug": network_slug,
+            "time_period": "daily",
+            "count": 30,  # 获取30天的数据
+            "aux": "num_transactions_24h,holders,24h_no_of_buys,24h_no_of_sells,24h_buy_volume,24h_sell_volume"
+        }
+        
+        ohlcv_response = requests.get(ohlcv_url, params=ohlcv_params, headers=headers)
+        if ohlcv_response.status_code != 200:
+            logger.error(f"获取{asset}历史OHLCV数据失败: HTTP {ohlcv_response.status_code}")
+            logger.error(f"错误响应: {ohlcv_response.text}")
+            return {}
+            
+        ohlcv_data = ohlcv_response.json()
+        
+        # 3. 获取最新交易数据
+        trades_url = "https://pro-api.coinmarketcap.com/v4/dex/pairs/trade/latest"
+        trades_params = {
+            "contract_address": contract_address,
+            "network_slug": network_slug,
+            "aux": "transaction_hash,blockchain_explorer_link"
+        }
+        
+        trades_response = requests.get(trades_url, params=trades_params, headers=headers)
+        if trades_response.status_code != 200:
+            logger.error(f"获取{asset}最新交易数据失败: HTTP {trades_response.status_code}")
+            logger.error(f"错误响应: {trades_response.text}")
+            return {}
+            
+        trades_data = trades_response.json()
+        
+        # 整合数据
+        metrics = {
+            "pair_info": pair,
+            "historical_data": ohlcv_data.get("data", []),
+            "recent_trades": trades_data.get("data", []),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return metrics
         
     except Exception as e:
         logger.error(f"获取{asset}链上指标数据时出错: {e}")
@@ -377,32 +472,362 @@ def get_account_balance(exchange, quote_currency='USDT') -> Dict[str, Any]:
         return {}
 
 
-def get_market_sentiment(asset: str) -> Dict[str, Any]:
-    """获取市场情绪指标
+def get_crypto_news(asset: str, limit: int = 10) -> Dict:
+    """
+    获取加密货币相关新闻
+    
+    Args:
+        asset: 加密货币符号
+        limit: 返回的新闻数量
+        
+    Returns:
+        Dict: 包含新闻和情感分析结果的字典
+    """
+    try:
+        url = "https://crypto-news51.p.rapidapi.com/api/v1/crypto/articles/search"
+        params = {
+            "title_keywords": asset,
+            "page": 1,
+            "limit": limit,
+            "time_frame": "24h",
+            "format": "json"
+        }
+        
+        # 从环境变量获取RapidAPI密钥
+        rapidapi_key = os.getenv('RAPIDAPI_KEY')
+        if not rapidapi_key:
+            logger.error("未找到RAPIDAPI_KEY环境变量，无法获取加密货币新闻")
+            return {"news": [], "error": "未找到RAPIDAPI_KEY环境变量", "timestamp": datetime.now().isoformat()}
+            
+        headers = {
+            "x-rapidapi-host": "crypto-news51.p.rapidapi.com",
+            "x-rapidapi-key": rapidapi_key,
+            "Accept": "application/json"
+        }
+        
+        logger.info(f"正在获取{asset}相关新闻，参数：{params}")
+        response = requests.get(url, params=params, headers=headers)
+        
+        # 记录API请求结果
+        logger.info(f"API状态码: {response.status_code}")
+        if response.status_code != 200:
+            logger.error(f"API错误: {response.text}")
+            # 返回结构化空结果
+            return {"news": [], "error": response.text, "timestamp": datetime.now().isoformat()}
+            
+        response.raise_for_status()
+        data = response.json()
+        
+        # 记录返回数据结构以便调试
+        if isinstance(data, list):
+            logger.info(f"API返回列表数据，包含{len(data)}条新闻")
+        elif isinstance(data, dict):
+            logger.info(f"API返回字典数据: {list(data.keys())}")
+        else:
+            logger.warning(f"API返回未知格式数据: {type(data)}")
+        
+        # 使用Gemini进行情感分析
+        # 从环境变量获取Gemini API密钥
+        gemini_key = os.getenv('GEMINI_API_KEY')
+        if not gemini_key:
+            logger.error("未找到GEMINI_API_KEY环境变量，无法进行情感分析")
+            return {"news": [], "error": "未找到GEMINI_API_KEY环境变量", "timestamp": datetime.now().isoformat()}
+            
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        news_with_sentiment = []
+        
+        # 确保data是列表格式
+        articles = data if isinstance(data, list) else []
+        
+        for article in articles:
+            # 准备用于情感分析的文本
+            title = article.get('title', '')
+            summary = article.get('summary', '')
+            
+            if not title and not summary:
+                logger.warning(f"跳过无内容的文章: {article}")
+                continue
+            
+            text_for_analysis = f"标题: {title}\n描述: {summary}"
+            
+            # 使用Gemini进行情感分析
+            prompt = f"""
+            请分析以下加密货币新闻的情感倾向。
+            
+            重要说明：
+            1. 只有在新闻中明确包含积极信息（如价格上涨、突破新高、市场信心增强等）时，才返回"positive"
+            2. 只有在新闻中明确包含消极信息（如价格下跌、市场恐慌、技术故障等）时，才返回"negative"
+            3. 如果新闻主要是客观事实陈述，没有明显的积极或消极倾向，必须返回"neutral"
+            
+            示例：
+            标题：比特币价格突破新高，市场信心增强
+            描述：比特币价格突破50000美元，交易量显著增加
+            结果：positive（因为包含明确的积极信息：价格突破新高、交易量增加）
+            
+            标题：市场遭遇重挫，投资者恐慌性抛售
+            描述：由于监管政策收紧，市场出现大幅下跌
+            结果：negative（因为包含明确的消极信息：市场重挫、恐慌性抛售）
+            
+            标题：系统升级完成
+            描述：系统成功完成升级，运行正常
+            结果：neutral（因为只是客观陈述事实，没有明显的积极或消极倾向）
+            
+            请仔细分析以下新闻并只返回一个词（positive、negative或neutral）：
+            {text_for_analysis}
+            """
+            
+            try:
+                response = model.generate_content(prompt)
+                sentiment = response.text.strip().lower()
+                logger.info(f"新闻情感分析结果: {sentiment}, 标题: {title[:50]}...")
+            except Exception as e:
+                logger.error(f"Gemini情感分析失败: {str(e)}")
+                sentiment = "neutral"
+            
+            article["sentiment"] = sentiment
+            # 为了保持与测试兼容，添加description字段
+            article["description"] = article.get("summary", "")
+            news_with_sentiment.append(article)
+        
+        result = {
+            "news": news_with_sentiment,
+            "timestamp": datetime.now().isoformat()
+        }
+        logger.info(f"完成{asset}相关新闻的获取和情感分析，共{len(news_with_sentiment)}条")
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"获取加密货币新闻失败: {str(e)}")
+        return {"news": [], "error": str(e), "timestamp": datetime.now().isoformat()}
+
+def get_supported_dex_networks() -> List[Dict[str, Any]]:
+    """获取CoinMarketCap支持的DEX网络列表
+    
+    Returns:
+        包含网络信息的列表
+    """
+    try:
+        url = "https://pro-api.coinmarketcap.com/v4/dex/networks"
+        headers = {
+            "X-CMC_PRO_API_KEY": os.getenv('COINMARKETCAP_API_KEY'),
+            "Accept": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            logger.error(f"获取DEX网络列表失败: HTTP {response.status_code}")
+            logger.error(f"错误响应: {response.text}")
+            return []
+            
+        data = response.json()
+        return data.get("data", [])
+        
+    except Exception as e:
+        logger.error(f"获取DEX网络列表时出错: {e}")
+        return []
+
+def get_coinmarketcap_data(asset: str, network_slug: str = "ethereum") -> Dict[str, Any]:
+    """获取CoinMarketCap DEX市场数据
+    
+    Args:
+        asset: 资产代号或合约地址
+        network_slug: 网络标识符，如'ethereum', 'bsc', 'polygon'等
+        
+    Returns:
+        包含市场数据的字典
+    """
+    try:
+        # 使用/v4/dex/listings/quotes端点
+        url = "https://pro-api.coinmarketcap.com/v4/dex/listings/quotes"
+        params = {
+            "start": 1,
+            "limit": 50,
+            "sort": "volume_24h",
+            "sort_dir": "desc",
+            "aux": "num_market_pairs,last_updated,market_share"
+        }
+        headers = {
+            "X-CMC_PRO_API_KEY": os.getenv('COINMARKETCAP_API_KEY'),
+            "Accept": "application/json"
+        }
+        
+        response = requests.get(url, params=params, headers=headers)
+        if response.status_code != 200:
+            logger.error(f"获取DEX列表数据失败: {response.status_code}")
+            logger.error(f"响应内容: {response.text}")
+            return {}
+            
+        data = response.json()
+        
+        # 整合数据
+        market_data = {
+            "data": data.get("data", {}),
+            "status": data.get("status", {}),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return market_data
+        
+    except Exception as e:
+        logger.error(f"获取CoinMarketCap DEX数据时出错: {e}")
+        return {}
+
+def get_geckoterminal_data(asset: str) -> Dict[str, Any]:
+    """获取GeckoTerminal链上交易数据
     
     Args:
         asset: 资产代号，如'BTC'或'ETH'
         
     Returns:
-        包含市场情绪指标的字典
+        包含链上交易数据的字典
     """
     try:
-        # 这里应该集成实际的市场情绪API，如Fear & Greed Index
-        # 以下为模拟数据
-        sentiment_data = {
-            "fear_greed_index": 65,  # 0-100，0为极度恐惧，100为极度贪婪
-            "fear_greed_classification": "Greed",
-            "social_sentiment": 0.62,  # -1到1，-1为极度负面，1为极度正面
-            "social_volume": 125000,
-            "google_trends_value": 78,
-            "twitter_sentiment": 0.58,
-            "reddit_sentiment": 0.65,
-            "timestamp": datetime.now().timestamp()
+        # 1. 搜索资产对应的主要交易池
+        search_url = f"https://api.geckoterminal.com/api/v2/search/pools?query={asset}"
+        search_response = requests.get(search_url)
+        
+        if search_response.status_code != 200:
+            logger.error(f"搜索{asset}交易池失败: HTTP {search_response.status_code}")
+            return {}
+            
+        pools_data = search_response.json()
+        if not pools_data.get("data"):
+            logger.error(f"未找到{asset}的交易池")
+            return {}
+            
+        # 获取第一个交易池的详细信息
+        pool_id = pools_data["data"][0]["id"]
+        network, pool_address = pool_id.split("_", 1)
+        
+        # 2. 获取池的详细数据
+        pool_url = f"https://api.geckoterminal.com/api/v2/networks/{network}/pools/{pool_address}"
+        pool_response = requests.get(pool_url, headers={"accept": "application/json"})
+        
+        if pool_response.status_code != 200:
+            logger.error(f"获取{asset}池数据失败: HTTP {pool_response.status_code}")
+            return {}
+            
+        pool_data = pool_response.json()
+        attrs = pool_data["data"]["attributes"]
+        
+        # 3. 获取交易明细
+        trades_url = f"https://api.geckoterminal.com/api/v2/networks/{network}/pools/{pool_address}/trades"
+        trades_response = requests.get(trades_url, headers={"accept": "application/json"})
+        
+        trades_data = []
+        if trades_response.status_code == 200:
+            trades_data = trades_response.json().get("data", [])
+        
+        return {
+            "price_usd": attrs["base_token_price_usd"],
+            "volume_24h": attrs["volume_usd"]["h24"],
+            "liquidity": attrs.get("liquidity", {}),
+            "transactions_24h": {
+                "buys": attrs["transactions"]["h24"]["buys"],
+                "sells": attrs["transactions"]["h24"]["sells"],
+                "buyers": attrs["transactions"]["h24"]["buyers"],
+                "sellers": attrs["transactions"]["h24"]["sellers"]
+            },
+            "recent_trades": trades_data[:10]  # 只返回最近10笔交易
         }
         
-        logger.info(f"成功获取{asset}的市场情绪数据")
-        return sentiment_data
+    except Exception as e:
+        logger.error(f"获取{asset} GeckoTerminal数据时出错: {e}")
+        return {}
+
+def get_latest_trades(asset: str, network_slug: str = "ethereum", limit: int = 100) -> Dict:
+    """
+    获取指定资产的最新交易数据
+    
+    Args:
+        asset: 资产符号（如ETH）
+        network_slug: 网络标识符（默认为ethereum）
+        limit: 返回的交易数量限制
+        
+    Returns:
+        Dict: 包含最新交易数据的字典
+    """
+    try:
+        # 1. 首先获取资产的合约地址
+        contract_url = "https://pro-api.coinmarketcap.com/v4/dex/spot-pairs/latest"
+        params = {
+            "base_asset_symbol": asset,
+            "network_slug": network_slug,
+            "limit": 1,
+            "sort": "volume_24h",
+            "sort_dir": "desc",
+            "aux": "contract_address,network_slug"
+        }
+        headers = {
+            "X-CMC_PRO_API_KEY": os.getenv("COINMARKETCAP_API_KEY"),
+            "Accept": "application/json"
+        }
+        
+        response = requests.get(contract_url, params=params, headers=headers)
+        if response.status_code != 200:
+            logger.error(f"获取合约地址失败: {response.status_code}")
+            logger.error(f"响应内容: {response.text}")
+            return {}
+            
+        data = response.json()
+        if not data.get("data"):
+            logger.error(f"未找到{asset}的DEX交易对")
+            return {}
+            
+        pair_data = data["data"][0]
+        contract_address = pair_data.get("contract_address")
+        
+        if not contract_address:
+            logger.error(f"未找到{asset}的合约地址")
+            return {}
+            
+        # 2. 获取最新交易数据
+        trades_url = "https://pro-api.coinmarketcap.com/v4/dex/pairs/trade/latest"
+        params = {
+            "contract_address": contract_address,
+            "network_slug": network_slug,
+            "limit": limit
+        }
+        
+        response = requests.get(trades_url, params=params, headers=headers)
+        if response.status_code != 200:
+            logger.error(f"获取交易数据失败: {response.status_code}")
+            logger.error(f"响应内容: {response.text}")
+            return {}
+            
+        data = response.json()
+        if not data.get("data"):
+            logger.error(f"未找到{asset}的交易数据")
+            return {}
+            
+        trades = data["data"]
+        
+        # 3. 计算交易统计信息
+        total_volume = sum(float(trade.get("volume", 0)) for trade in trades)
+        total_trades = len(trades)
+        buy_volume = sum(float(trade.get("volume", 0)) for trade in trades if trade.get("side") == "buy")
+        sell_volume = sum(float(trade.get("volume", 0)) for trade in trades if trade.get("side") == "sell")
+        avg_price = sum(float(trade.get("price", 0)) for trade in trades) / total_trades if total_trades > 0 else 0
+        
+        return {
+            "trades": trades,
+            "stats": {
+                "total_trades": total_trades,
+                "total_volume": total_volume,
+                "buy_volume": buy_volume,
+                "sell_volume": sell_volume,
+                "avg_price": avg_price
+            },
+            "pair_info": {
+                "contract_address": contract_address,
+                "network_slug": network_slug,
+                "base_asset": asset
+            },
+            "timestamp": datetime.now().isoformat()
+        }
         
     except Exception as e:
-        logger.error(f"获取{asset}市场情绪数据时出错: {e}")
+        logger.error(f"获取最新交易数据时发生错误: {str(e)}")
         return {}

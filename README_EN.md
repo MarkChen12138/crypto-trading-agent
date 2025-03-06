@@ -2,7 +2,7 @@
 
 [中文](README.md) | English
 
-This document provides detailed instructions for the cryptocurrency trading agent system, including installation, configuration, operation, and various features.
+This document provides detailed instructions for the cryptocurrency trading agent system, including installation, configuration, operation, and usage of various features.
 
 ## Table of Contents
 
@@ -10,10 +10,11 @@ This document provides detailed instructions for the cryptocurrency trading agen
 2. [Installation](#installation)
 3. [System Configuration](#system-configuration)
 4. [Basic Usage](#basic-usage)
-5. [Agent Modules](#agent-modules)
-6. [Backtesting System](#backtesting-system)
-7. [Customization and Extension](#customization-and-extension)
-8. [Troubleshooting](#troubleshooting)
+5. [API Interfaces](#api-interfaces)
+6. [Agent Modules](#agent-modules)
+7. [Backtesting System](#backtesting-system)
+8. [Customization and Extension](#customization-and-extension)
+9. [FAQ and Troubleshooting](#faq-and-troubleshooting)
 
 ## System Overview
 
@@ -133,6 +134,60 @@ python main.py --config configs/your_config.json --mode backtest
 - `--generate-config`: Generate default configuration file
 - `--setup`: Setup environment
 
+## API Interfaces
+
+This system integrates multiple external APIs to provide rich data and analysis services for trading agents:
+
+### Exchange API
+
+- **Binance API**: Used for market data retrieval, trade execution, and account information
+  - Provides real-time prices, historical K-line data, order books, etc.
+  - Supports simulated trading and live trading
+
+### News and Sentiment Analysis API
+
+- **RapidAPI Crypto News**: Used to obtain cryptocurrency-related news
+
+  - Source: crypto-news51.p.rapidapi.com
+  - Function: Retrieves the latest news articles related to specific cryptocurrencies
+  - Requires: RAPIDAPI_KEY (configured in the .env file)
+
+- **Google Gemini API**: Used for news sentiment analysis
+  - Model: gemini-1.5-flash
+  - Function: Analyzes news article sentiment (positive/negative/neutral)
+  - Requires: GEMINI_API_KEY (configured in the .env file)
+
+### Market Data API
+
+- **CoinMarketCap API**: Used to retrieve market data and DeFi information
+
+  - Function: Retrieves DEX network lists, cross-chain market data, etc.
+  - Requires: COINMARKETCAP_API_KEY (configured in the .env file)
+
+- **GeckoTerminal API**: Used to retrieve on-chain and DEX data
+  - Function: Provides on-chain transaction data and DEX activity
+
+### API Key Configuration
+
+All API keys need to be configured in the `.env` file in the project root directory, in the following format:
+
+```
+# Exchange API Keys
+BINANCE_API_KEY=your_binance_api_key
+BINANCE_API_SECRET=your_binance_api_secret
+
+# RapidAPI Key (for Crypto News API)
+RAPIDAPI_KEY=your_rapidapi_key
+
+# CoinMarketCap API Key
+COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
+
+# Google Gemini API Key
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+**Note**: Please safeguard your API keys properly and do not expose them or commit them to version control systems.
+
 ## Agent Modules
 
 The system consists of multiple specialized agents:
@@ -174,7 +229,7 @@ The system is designed to be extensible through:
 1. Add new API connector in `src/tools/`
 2. Integrate new data source in market data agent
 
-## Troubleshooting
+## FAQ and Troubleshooting
 
 ### API Connection Issues
 

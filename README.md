@@ -10,10 +10,11 @@
 2. [安装](#安装)
 3. [系统配置](#系统配置)
 4. [基本用法](#基本用法)
-5. [代理模块](#代理模块)
-6. [回测系统](#回测系统)
-7. [自定义和扩展](#自定义和扩展)
-8. [常见问题与排错](#常见问题与排错)
+5. [API 接口](#API接口)
+6. [代理模块](#代理模块)
+7. [回测系统](#回测系统)
+8. [自定义和扩展](#自定义和扩展)
+9. [常见问题与排错](#常见问题与排错)
 
 ## 系统概述
 
@@ -132,6 +133,60 @@ python main.py --config configs/your_config.json --mode backtest
 - `--symbol`: 交易对 (例如 BTC/USDT)
 - `--generate-config`: 生成默认配置文件
 - `--setup`: 设置环境
+
+## API 接口
+
+本系统集成了多个外部 API，为交易代理提供丰富的数据和分析服务：
+
+### 交易所 API
+
+- **Binance API**: 用于获取市场数据、交易执行和账户信息
+  - 提供实时价格、历史 K 线数据、订单簿等
+  - 支持模拟交易和实盘交易
+
+### 新闻和情感分析 API
+
+- **RapidAPI Crypto News**: 用于获取加密货币相关新闻
+
+  - 来源: crypto-news51.p.rapidapi.com
+  - 功能: 检索与特定加密货币相关的最新新闻文章
+  - 需要: RAPIDAPI_KEY (在.env 文件中配置)
+
+- **Google Gemini API**: 用于新闻情感分析
+  - 模型: gemini-1.5-flash
+  - 功能: 分析新闻文章情感 (积极/消极/中性)
+  - 需要: GEMINI_API_KEY (在.env 文件中配置)
+
+### 市场数据 API
+
+- **CoinMarketCap API**: 用于获取市场数据和 DeFi 信息
+
+  - 功能: 获取 DEX 网络列表、跨链市场数据等
+  - 需要: COINMARKETCAP_API_KEY (在.env 文件中配置)
+
+- **GeckoTerminal API**: 用于获取链上和 DEX 数据
+  - 功能: 提供链上交易数据和 DEX 活动
+
+### API 密钥配置
+
+所有 API 密钥需要在项目根目录的`.env`文件中配置，格式如下:
+
+```
+# 交易所API密钥
+BINANCE_API_KEY=your_binance_api_key
+BINANCE_API_SECRET=your_binance_api_secret
+
+# RapidAPI密钥 (用于Crypto News API)
+RAPIDAPI_KEY=your_rapidapi_key
+
+# CoinMarketCap API密钥
+COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
+
+# Google Gemini API密钥
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+**注意**: 请妥善保管您的 API 密钥，不要将它们公开或提交到版本控制系统中。
 
 ## 代理模块
 

@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "crypto-trading-agent"
+version = "0.1.0"
+description = "加密货币交易代理"
+authors = ["Your Name <your.email@example.com>"]
+packages = [
+    { include = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.31.0"
+python-dotenv = "^1.0.0"
+ccxt = "^4.4.65"
+pandas = "^2.2.3"
+numpy = "^1.26.4"
+google-generativeai = "^0.8.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 
